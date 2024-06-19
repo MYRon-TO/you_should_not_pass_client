@@ -1,0 +1,69 @@
+import gi
+
+gi.require_version('Gtk', '4.0')
+from gi.repository import Gtk
+
+
+
+# class ListBoxRowWithData(Gtk.ListBoxRow):
+#     def __init__(self, data):
+#         super().__init__()
+#         self.data = data
+#         self.set_child(Gtk.Label(label=data))
+
+class ButtonWindow(Gtk.ApplicationWindow):
+    def __init__(self, **kargs):
+        super().__init__(**kargs, title='用户名密码管理软件')
+        self.set_default_size(300, 250)
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self.set_child(vbox)
+
+        scrolled_window = Gtk.ScrolledWindow()
+        scrolled_window.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        # scrolled_window.set_size_request(400, 200)
+        # scrolled_window
+        vbox.append(scrolled_window)
+        
+        listbox = Gtk.ListBox()
+        listbox.props.selection_mode = Gtk.SelectionMode.NONE
+        listbox.props.show_separators = True
+        scrolled_window.set_child(listbox)
+
+        for i in range(0,50):
+            # Our second row. We will omit the ListBoxRow and directly append a Box
+            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=24)
+            check = Gtk.CheckButton()
+            check.props.hexpand = True
+            check.props.halign = Gtk.Align.END
+            button = Gtk.LinkButton(
+                uri='https://www.gtk.org', label='Visit GTK Homepage'
+            )
+            pass_entry = Gtk.PasswordEntry()
+            pass_entry.props.placeholder_text = 'Password Entry'
+            pass_entry.props.margin_top = 0
+            hbox.append(check)
+            hbox.append(button)
+            hbox.append(pass_entry)
+            listbox.append(hbox)  # Add the second row to the list
+
+
+    # def sort_func(self, row_1, row_2):
+    #     return row_1.data.lower() > row_2.data.lower()
+
+    # def filter_func(self, row):
+    #     return False if row.data == 'Fail' else True
+
+    # def on_row_activated(self, _listbox, row):
+    #     print(row.data)
+
+
+def on_activate(app):
+    win = ButtonWindow(application=app)
+    win.present()
+
+
+app = Gtk.Application(application_id='com.example.App')
+app.connect('activate', on_activate)
+
+app.run(None)
