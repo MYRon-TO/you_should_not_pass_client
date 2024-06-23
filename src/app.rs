@@ -2,7 +2,7 @@ use std::error;
 
 use crossterm::event::KeyEvent;
 use ratatui::{
-    style::{Color, Style},
+    style::{Color, Style, Stylize},
     Frame,
 };
 
@@ -98,10 +98,17 @@ impl App {
         let conn = crate::tcp::Connect::new().await;
         let act = Action::CheckIdentity { password };
         let res = conn.request(act).await;
-        if let Ok(Ack::Ack) = res {
-            self.login = true;
-            self.sync().await;
-        };
+        match res {
+            Ok(Ack::Ack) => {
+                self.login = true;
+                self.page.login_textarea.set_style(Style::default().fg(Color::Green));
+                self.sync().await;
+            }
+            _ => {
+                self.page.login_textarea.set_style(Style::default().fg(Color::Red));
+                self.page.login_textarea.set_placeholder_text("Wrong password");
+            }
+        }
     }
 
     pub fn list_select_next_item(&mut self) {

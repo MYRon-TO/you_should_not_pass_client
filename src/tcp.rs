@@ -136,13 +136,13 @@ fn pack_ack(parts: Vec<&str>) -> Result<Ack, Box<dyn Error>> {
             for item in parts.iter().skip(1) {
                 let item_parts: Vec<&str> = item.split('\t').collect();
                 let id = item_parts[0].parse::<i32>()?;
-                let account = item_parts[1].to_string();
-                let password = item_parts[2].to_string();
-                let site_url = item_parts[3].to_string();
+                let account = decode(item_parts[1].to_string());
+                let password = decode(item_parts[2].to_string());
+                let site_url = decode(item_parts[3].to_string());
                 let site_name = if item_parts[4].is_empty() {
                     None
                 } else {
-                    Some(item_parts[4].to_string())
+                    Some(decode(item_parts[4].to_string()))
                 };
                 let note = if item_parts[5].is_empty() {
                     None
@@ -220,7 +220,11 @@ fn depack_action(action: Action) -> String {
             let note = note.unwrap_or("".to_string());
             format!(
                 "2\t{}\t{}\t{}\t{}\t{}",
-                account, password, site_url, site_name, encode(note)
+                encode(account),
+                encode(password),
+                encode(site_url),
+                encode(site_name),
+                encode(note)
             )
         }
         Action::ChangeWebsiteAccount {
@@ -235,7 +239,12 @@ fn depack_action(action: Action) -> String {
             let new_note = new_note.unwrap_or("".to_string());
             format!(
                 "3\t{}\t{}\t{}\t{}\t{}\t{}",
-                id, new_account, new_password, new_site_name, new_site_url, encode(new_note)
+                id,
+                encode(new_account),
+                encode(new_password),
+                encode(new_site_name),
+                encode(new_site_url),
+                encode(new_note)
             )
         }
         Action::DeleteWebsiteAccount { website_id } => {
