@@ -2,7 +2,7 @@ use std::error;
 
 use crossterm::event::KeyEvent;
 use ratatui::{
-    style::{Color, Style, Stylize},
+    style::{Color, Style},
     Frame,
 };
 
@@ -24,14 +24,25 @@ pub enum Focus {
     Password,
 }
 
+#[derive(Debug)]
+pub enum Status {
+    Login,
+    List,
+    Edit,
+    Delete,
+    Search,
+}
+
 /// Application.
 #[derive(Debug)]
 pub struct App {
     // pub login: RwLock<bool>,
-    pub login: bool,
+    // pub login: bool,
     pub focus: Focus,
-    pub edit: bool,
-    pub delete: bool,
+    pub is_edit_no_new_item: bool,
+    // pub delete: bool,
+    // pub search: bool,
+    pub status: Status,
     /// Is the application running?
     pub running: bool,
     pub account_list: AccountList,
@@ -42,11 +53,13 @@ impl Default for App {
     fn default() -> Self {
         Self {
             // login: RwLock::new(false),
-            login: false,
-            running: true,
+            // login: false,
             focus: Focus::List,
-            edit: false,
-            delete: false,
+            is_edit_no_new_item: false,
+            // delete: false,
+            // search: false,
+            status: Status::Login,
+            running: true,
             account_list: AccountList::default(),
             page: RunningPage::default(),
         }
@@ -100,13 +113,20 @@ impl App {
         let res = conn.request(act).await;
         match res {
             Ok(Ack::Ack) => {
-                self.login = true;
-                self.page.login_textarea.set_style(Style::default().fg(Color::Green));
+                // self.login = true;
+                self.status = Status::List;
+                self.page
+                    .login_textarea
+                    .set_style(Style::default().fg(Color::Green));
                 self.sync().await;
             }
             _ => {
-                self.page.login_textarea.set_style(Style::default().fg(Color::Red));
-                self.page.login_textarea.set_placeholder_text("Wrong password");
+                self.page
+                    .login_textarea
+                    .set_style(Style::default().fg(Color::Red));
+                self.page
+                    .login_textarea
+                    .set_placeholder_text("Wrong password");
             }
         }
     }
@@ -202,12 +222,14 @@ impl App {
             .set_cursor_style(Style::default());
         self.page.note_textarea.set_cursor_style(Style::default());
 
-        self.edit = false;
+        self.is_edit_no_new_item = false;
+        self.status = Status::Edit;
         self.focus_next();
     }
 
     pub async fn quit_edit(&mut self) {
         self.focus = Focus::List;
+        self.status = Status::List;
 
         let password = self
             .page
@@ -245,7 +267,7 @@ impl App {
             note = note + "\n" + line;
         }
 
-        let action = if self.edit {
+        let action = if self.is_edit_no_new_item {
             let selected = self.account_list.selected;
             let id = self.account_list.list[selected].id;
             Action::ChangeWebsiteAccount {
@@ -302,7 +324,7 @@ impl App {
             .set_cursor_style(Style::default());
         self.page.note_textarea.set_cursor_style(Style::default());
 
-        self.edit = true;
+        self.is_edit_no_new_item = true;
 
         let selected = self.account_list.selected;
         self.page
@@ -327,6 +349,8 @@ impl App {
                 .unwrap_or("".to_string()),
         );
 
+        self.is_edit_no_new_item = true;
+        self.status = Status::Edit;
         self.focus_next();
     }
 
@@ -350,11 +374,13 @@ impl App {
         }
     }
     pub fn try_delete(&mut self) {
-        self.delete = true;
+        self.status = Status::Delete;
+        // self.delete = true;
     }
 
     pub fn cancel_delete(&mut self) {
-        self.delete = false;
+        self.status = Status::List;
+        // self.delete = false;
     }
 
     pub async fn delete(&mut self) {
@@ -367,6 +393,23 @@ impl App {
         if ack.is_ok() {
             self.sync().await;
         }
-        self.delete = false;
+        // self.delete = false;
+        self.cancel_delete();
+    }
+
+    pub fn search(&mut self) {
+        if let Status::Search = self.status {
+            self.status = Status::List;
+            self.page.search_textarea.set_cursor_style(Style::default());
+        } else {
+            self.status = Status::Search;
+            self.page
+                .search_textarea
+                .set_cursor_style(Style::default().bg(Color::White));
+        }
+    }
+
+    pub fn search_input(&mut self, key: KeyEvent) {
+        self.page.search_textarea.input(key);
     }
 }

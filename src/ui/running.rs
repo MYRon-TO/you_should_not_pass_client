@@ -1,4 +1,7 @@
-use crate::{app::App, tcp::AccountList};
+use crate::{
+    app::{App, Status},
+    tcp::AccountList,
+};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Style, Stylize},
@@ -16,6 +19,7 @@ pub struct RunningPage<'a> {
     pub site_name_textarea: TextArea<'a>,
     pub site_url_textarea: TextArea<'a>,
     pub note_textarea: TextArea<'a>,
+    pub search_textarea: TextArea<'a>,
 }
 
 impl Default for RunningPage<'_> {
@@ -51,6 +55,11 @@ impl Default for RunningPage<'_> {
         password_textarea.set_cursor_line_style(Style::default());
         password_textarea.set_cursor_style(Style::default());
 
+        let mut search_textarea = TextArea::default();
+        search_textarea.set_block(Block::default().borders(Borders::ALL).title("Search"));
+        search_textarea.set_cursor_line_style(Style::default());
+        search_textarea.set_cursor_style(Style::default());
+
         Self {
             login_textarea,
             account_textarea,
@@ -58,46 +67,69 @@ impl Default for RunningPage<'_> {
             site_name_textarea,
             site_url_textarea,
             note_textarea,
+            search_textarea,
         }
     }
 }
 
 impl RunningPage<'_> {
     pub fn draw_running(&self, f: &mut Frame, app: &App) {
+        // let is_login = app.login;
+        let status = &app.status;
         let account_list = &app.account_list;
-        let is_login = app.login;
 
-        let chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(61), Constraint::Percentage(39)])
-            .split(f.size());
+        match status {
+            Status::Login => {
+                self.draw_login(f);
+            }
+            Status::Delete => {
+                let account = account_list.list[account_list.selected].account.clone();
+                let site_name = match &account_list.list[account_list.selected].site_name {
+                    Some(name) => name.clone(),
+                    None => account_list.list[account_list.selected].site_url.clone(),
+                };
 
-        let menu_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(3), Constraint::Min(1)])
-            .split(chunks[0]);
+                self.draw_delete(f, account, site_name);
+            }
+            Status::List | Status::Search => {
+                let chunks = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([Constraint::Percentage(61), Constraint::Percentage(39)])
+                    .split(f.size());
 
-        let detail_chunks = chunks[1];
-        let title_chunk = menu_chunks[0];
-        let list_chunk = menu_chunks[1];
+                let menu_chunks = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([
+                        Constraint::Length(3),
+                        Constraint::Length(3),
+                        Constraint::Min(1),
+                    ])
+                    .split(chunks[0]);
 
-        if !is_login {
-            self.draw_login(f);
-        } else if app.delete {
-            let account = account_list.list[account_list.selected].account.clone();
-            let site_name = match &account_list.list[account_list.selected].site_name {
-                Some(name) => name.clone(),
-                None => account_list.list[account_list.selected].site_url.clone(),
-            };
+                let detail_chunks = chunks[1];
+                let title_chunk = menu_chunks[0];
+                let search_chunk = menu_chunks[1];
+                let list_chunk = menu_chunks[2];
 
-            self.draw_delete(f, account, site_name);
-        } else if let crate::app::Focus::List = app.focus {
-            self.draw_title(f, title_chunk);
-            self.draw_list(f, list_chunk, account_list);
-            self.draw_detail(f, detail_chunks, account_list);
-        } else {
-            self.draw_edit(f);
+                let search_text = if self.search_textarea.lines().join("").is_empty() {
+                    None
+                } else {
+                    Some(self.search_textarea.lines().join(""))
+                };
+
+                self.draw_title(f, title_chunk);
+                self.draw_search(f, search_chunk);
+                self.draw_list(f, list_chunk, account_list, search_text);
+                self.draw_detail(f, detail_chunks, account_list);
+            }
+            Status::Edit => {
+                self.draw_edit(f);
+            }
         }
+    }
+
+    fn draw_search(&self, f: &mut Frame, area: Rect) {
+        f.render_widget(self.search_textarea.widget(), area);
     }
 
     fn draw_delete(&self, f: &mut Frame, account: String, site_name: String) {
@@ -109,7 +141,10 @@ impl RunningPage<'_> {
             .constraints([Constraint::Min(1)])
             .split(area);
 
-        let text = Text::styled(format!("Delete {} - {}? [Y/N]", account, site_name), Style::default());
+        let text = Text::styled(
+            format!("Delete {} - {}? [Y/N]", account, site_name),
+            Style::default(),
+        );
         let paragraph = Paragraph::new(text)
             .block(
                 Block::default()
@@ -195,7 +230,13 @@ impl RunningPage<'_> {
         f.render_widget(title, area);
     }
 
-    fn draw_list(&self, f: &mut Frame, area: Rect, account_list: &AccountList) {
+    fn draw_list(
+        &self,
+        f: &mut Frame,
+        area: Rect,
+        account_list: &AccountList,
+        search_text: Option<String>,
+    ) {
         let mut list_items = Vec::<ListItem>::new();
         for item in &account_list.list {
             let account = item.account.clone();
@@ -206,13 +247,17 @@ impl RunningPage<'_> {
 
             let is_dead = item.is_dead;
 
+            let text = format!("{} - {}", account, name);
+            if let Some(search_text) = &search_text {
+                if !text.to_lowercase().contains(&search_text.to_lowercase()) {
+                    continue;
+                }
+            }
+
             list_items.push(ListItem::new(Line::from(if is_dead {
-                format!("{} - {}", account, name)
-                    .crossed_out()
-                    .italic()
-                    .dark_gray()
+                text.crossed_out().italic().dark_gray()
             } else {
-                format!("{} - {}", account, name).white()
+                text.white()
             })));
         }
 
